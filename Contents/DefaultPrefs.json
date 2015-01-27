@@ -1,0 +1,8 @@
+[
+  {
+        "id": "location",
+        "type": "text",
+        "label": "Type your location",
+        "default": "Montreal"
+    },
+]
