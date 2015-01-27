@@ -11,10 +11,10 @@ Manual Installation: with git
 ```bash
   # mkdir github
   # cd github
-  # git clone https://github.com/lotooo/Pluzz.bundle.git
+  # git clone https://github.com/lotooo/LocalTrailers.bundle.git
   # cd
-  # rm -fr $PLEX_FOLDER/Plug-ins/Pluzz.bundle
-  # ln -s ~/github/Pluzz.bundle/ $PLEX_FOLDER/Plug-ins/Pluzz.bundle
+  # rm -fr $PLEX_FOLDER/Plug-ins/LocalTrailers.bundle
+  # ln -s ~/github/LocalTrailers.bundle/ $PLEX_FOLDER/Plug-ins/LocalTrailers.bundle
 ```
 
 * Close the Terminal program
@@ -24,7 +24,7 @@ To update the plugin:
 * Execute the following commands:
 
 ```bash
-  # cd github/Pluzz.bundle
+  # cd github/LocalTrailers.bundle
   # git pull
 ```
 
@@ -32,16 +32,16 @@ To update the plugin:
 
 Manual installation : without git
 ================================
-* Download zip file from here: https://github.com/lotooo/Pluzz.bundle/archive/master.zip
+* Download zip file from here: https://github.com/lotooo/LocalTrailers.bundle/archive/master.zip
 * Unzip the file
-* Move the unzipped folder to your home directory into a folder called github and rename the unzipped folder to Pluzz.bundle (removing the -master suffix)
+* Move the unzipped folder to your home directory into a folder called github and rename the unzipped folder to LocalTrailers.bundle (removing the -master suffix)
 * Open a Terminal
 * Execute the following commands
 
 ```bash
-  # rm -fr $PLEX_FOLDER/Plug-ins/Pluzz.bundle
-  # ln -s ~/github/Pluzz.bundle/ $PLEX_FOLDER/Plug-ins/Pluzz.bundle
+  # rm -fr $PLEX_FOLDER/Plug-ins/LocalTrailers.bundle
+  # ln -s ~/github/LocalTrailers.bundle/ $PLEX_FOLDER/Plug-ins/LocalTrailers.bundle
 ```
 
 To update the plugin.
-Redownload the zip file and replace the .bundle file found here: github/Pluzz.bundle
+Redownload the zip file and replace the .bundle file found here: github/LocalTrailers.bundle
