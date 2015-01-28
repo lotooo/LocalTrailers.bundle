@@ -256,12 +256,23 @@ def MoviesView(theater=None):
     for movie in [ t for t in sorted_movies if t['name'] <> "" ]:
         video_rating = 5.0;
         video_date = date.today()
+
+        # Get the youtube info
+        video_info = URLService.MetadataObjectForURL(movie['trailer'])
+        if video_info <> None:
+            thumb = unquote(video_info.thumb.split('=').pop()).replace("%3A",":")
+            description = video_info.summary.split('=').pop()
+        else:
+            thumb = ""
+            description = ""
+
         if movie['trailer'] <> '':
             oc.add(
                 VideoClipObject(
                   title = String.StripDiacritics(movie['name']),
-                  summary = '',
+                  summary = description,
                   art=R('movie.jpg'),
+                  thumb=Resource.ContentsOfURLWithFallback(url=thumb),
                   url = movie['trailer']
                 )
             )
