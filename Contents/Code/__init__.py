@@ -11,6 +11,7 @@ ICON = 'icon-default_w.png'
 ####################################################################################################
 from datetime import date
 from urllib import unquote
+from urllib import quote
 
 def Start():
 
@@ -147,8 +148,8 @@ def getMoviesFromHTML(movie_blocks):
 def getNearbyTheaters(location):
     theaters = []   
 
-    Log.Debug("Retrieving theaters list for: %s" % location)
-    url = "http://www.google.com/movies?near=%s" % location
+    Log.Debug("Retrieving theaters list for: %s" % quote(location))
+    url = "http://www.google.com/movies?near=%s" % quote(location)
 
     Log.Debug("URL: %s" % url)
 
@@ -158,7 +159,7 @@ def getNearbyTheaters(location):
     page = 20
     while len(getTheatersFromHTML(theater_blocks)) != 0:
         theaters += getTheatersFromHTML(theater_blocks)
-        url = "http://www.google.com/movies?near=%s&start=%d" % (location, page)
+        url = "http://www.google.com/movies?near=%s&start=%d" % (quote(location), page)
         html = HTML.ElementFromURL(url=url)
         theater_blocks = html.body.find_class('theater')
         page += 10
@@ -251,6 +252,7 @@ def MoviesView(theater=None):
             movies = unique(m)
     else:
         movies = getMoviesForTheater(theater=theater)
+
     sorted_movies = sorted(movies, key=lambda k: k['name'])
 
     for movie in [ t for t in sorted_movies if t['name'] <> "" ]:
