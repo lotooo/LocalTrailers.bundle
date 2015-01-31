@@ -108,12 +108,14 @@ def getMovieName(el):
     return name
 
 def getMovieTrailer(el):
-    trailer = ""
+    # If no trailer found, choose La classe américaine
+    trailer = "https://www.youtube.com/watch?v=qHqYutWuy1E"
     for a in el.iter('a'):
         if a.text == 'Trailer':
             trailer = a.attrib['href']
-    Log.Debug(unquote(trailer[7:]))
-    return unquote(trailer[7:])
+            Log.Debug(unquote(trailer[7:]))
+            return unquote(trailer[7:])
+    return trailer
 
 def getMovieIMDB(el):
     imdb = ""
@@ -306,22 +308,18 @@ def MoviesView(theater=None):
         else:
             description = "No synopsis available"
             
-
-        if movie['trailer'] <> '':
-            oc.add(
-                MovieObject(
-                  title = String.StripDiacritics(movie['name']),
-                  summary = description,
-                  directors = directors,
-                  genres = genres,
-                  art=R('movie.jpg'),
-                  tagline= movie['showtimes'],
-                  thumb=Resource.ContentsOfURLWithFallback(url=thumb),
-                  url = movie['trailer']
-                )
+        oc.add(
+            MovieObject(
+              title = String.StripDiacritics(movie['name']),
+              summary = description,
+              directors = directors,
+              genres = genres,
+              art=R('movie.jpg'),
+              tagline= movie['showtimes'],
+              thumb=Resource.ContentsOfURLWithFallback(url=thumb),
+              url = movie['trailer']
             )
-        else:
-            Log.Debug('No trailer found for %s' % movie['name'] )  
+        )
     return oc
 
 
