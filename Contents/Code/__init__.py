@@ -123,6 +123,21 @@ def getMovieIMDB(el):
     Log.Debug(unquote(imdb[7:]))
     return unquote(imdb[7:])
 
+def getMovieDetails(title):
+    url = "http://www.imdbapi.com/?t=%s" % String.Quote(title)
+
+    try:
+        details = JSON.ObjectFromURL(url)
+    except:
+        Log.Debug("Unable to parse JSON from %s" % url)
+        details = {}
+
+    return details
+
+def getMovieShowtimes(el):
+    showtimes = el.xpath("//div[@class='times']/span/text()")
+    return ' | '.join(showtimes)
+
 def getTheatersFromHTML(theater_blocks):
     theaters = []
     for theater_block in theater_blocks:
@@ -140,6 +155,8 @@ def getMoviesFromHTML(movie_blocks):
         movie['name']         = getMovieName(movie_block)
         movie['trailer']      = getMovieTrailer(movie_block)
         movie['imdb']         = getMovieIMDB(movie_block)
+        movie['showtimes']    = getMovieShowtimes(movie_block)
+        movie['details']      = getMovieDetails(movie['name'])
         movies.append(movie)
     return movies
 
@@ -243,7 +260,7 @@ def unique(lst):
     return [] if lst==[] else [lst[0]] + unique(filter(lambda x: x!= lst[0], lst[1:]))
 
 def MoviesView(theater=None):
-    oc = ObjectContainer(title1='MoviesView')
+    oc = ObjectContainer(title1='MoviesView', content=ContainerContent.Movies)
     if theater == None:
         theaters = getNearbyTheaters(Prefs['location'])
         m = []
@@ -256,24 +273,49 @@ def MoviesView(theater=None):
     sorted_movies = sorted(movies, key=lambda k: k['name'])
 
     for movie in [ t for t in sorted_movies if t['name'] <> "" ]:
-        video_rating = 5.0;
+
+        if movie['details'].has_key('imdbRating'):
+            video_rating = movie['details']['imdbRating']
+        else:
+            video_rating = 5.0
+
+        if movie['details'].has_key('Director'):
+            directors = list(movie['details']['Director'])
+        else:
+            directors = []
+
+        if movie['details'].has_key('Genre'):
+            genres = movie['details']['Genre'].split(',')
+        else:
+            genres = []
+
         video_date = date.today()
 
-        # Get the youtube info
-        video_info = URLService.MetadataObjectForURL(movie['trailer'])
-        if video_info <> None:
-            thumb = unquote(video_info.thumb.split('=').pop()).replace("%3A",":")
-            description = video_info.summary.split('=').pop()
+        if movie['details'].has_key('Poster'):
+            thumb = movie['details']['Poster']
         else:
-            thumb = ""
-            description = ""
+            # Get the youtube info
+            video_info = URLService.MetadataObjectForURL(movie['trailer'])
+            if video_info <> None:
+                thumb = unquote(video_info.thumb.split('=').pop()).replace("%3A",":")
+            else:
+                thumb = ""
+
+        if movie['details'].has_key('Plot'):
+            description = movie['details']['Plot']
+        else:
+            description = "No synopsis available"
+            
 
         if movie['trailer'] <> '':
             oc.add(
-                VideoClipObject(
+                MovieObject(
                   title = String.StripDiacritics(movie['name']),
                   summary = description,
+                  directors = directors,
+                  genres = genres,
                   art=R('movie.jpg'),
+                  tagline= movie['showtimes'],
                   thumb=Resource.ContentsOfURLWithFallback(url=thumb),
                   url = movie['trailer']
                 )
