@@ -137,7 +137,9 @@ def getMovieDetails(title):
     return details
 
 def getMovieShowtimes(el):
-    showtimes = el.xpath("//div[@class='times']/span/text()")
+    showtimes = el.xpath(".//div[@class='times']/span/text()")
+    for s in showtimes:
+        Log.Debug(s)
     return ' | '.join(showtimes)
 
 def getTheatersFromHTML(theater_blocks):
@@ -197,13 +199,6 @@ def getMoviesForTheater(theater):
     movies = getMoviesFromHTML(movies_block) 
 
     return movies
-
-
-#### the rest of these are user created functions and
-#### are not reserved by the plugin framework.
-#### see: http://dev.plexapp.com/docs/Functions.html for
-#### a list of reserved functions above
-
 
 
 #
@@ -282,7 +277,7 @@ def MoviesView(theater=None):
             video_rating = 5.0
 
         if movie['details'].has_key('Director'):
-            directors = list(movie['details']['Director'])
+            directors = [movie['details']['Director']]
         else:
             directors = []
 
@@ -307,21 +302,46 @@ def MoviesView(theater=None):
             description = movie['details']['Plot']
         else:
             description = "No synopsis available"
+
+        title = String.StripDiacritics(movie['name'])
+        tagline = movie['showtimes']
+        rating_key = String.Quote(movie['name'])
             
         oc.add(
             MovieObject(
-              title = String.StripDiacritics(movie['name']),
+              key = Callback(Lookup, title=title, summary=description, directors=directors, genres=genres, tagline=tagline, thumb=thumb, trailer=movie['trailer'], rating_key = rating_key),
+              title = title,
               summary = description,
               directors = directors,
               genres = genres,
               art=R('movie.jpg'),
-              tagline= movie['showtimes'],
+              tagline= tagline,
               thumb=Resource.ContentsOfURLWithFallback(url=thumb),
-              url = movie['trailer']
+              items = URLService.MediaObjectsForURL(movie['trailer']),
+              rating_key = rating_key
+
             )
         )
     return oc
 
+def Lookup(title, summary,directors, genres, tagline, thumb, trailer, rating_key):
+    oc = ObjectContainer(title1='MoviesView', content=ContainerContent.Movies)
+    oc.add(
+        MovieObject(
+          key = Callback(Lookup, title=title, summary=summary, directors=directors, genres=genres, tagline=tagline, thumb=thumb, trailer=trailer, rating_key=rating_key),
+          title = title,
+          summary = summary,
+          directors = directors,
+          genres = genres,
+          art=R('movie.jpg'),
+          tagline=tagline,
+          thumb=thumb,
+          items = URLService.MediaObjectsForURL(trailer),
+          rating_key = rating_key
+
+        )
+    )
+    return oc
 
 def CallbackExample():
 
