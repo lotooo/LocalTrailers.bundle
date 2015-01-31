@@ -138,8 +138,6 @@ def getMovieDetails(title):
 
 def getMovieShowtimes(el):
     showtimes = el.xpath(".//div[@class='times']/span/text()")
-    for s in showtimes:
-        Log.Debug(s)
     return ' | '.join(showtimes)
 
 def getTheatersFromHTML(theater_blocks):
@@ -256,8 +254,10 @@ def TheatersView():
 def unique(lst):
     return [] if lst==[] else [lst[0]] + unique(filter(lambda x: x!= lst[0], lst[1:]))
 
+@route('/video/localtrailers/moviesview',theater=None ) 
 def MoviesView(theater=None):
     oc = ObjectContainer(title1='MoviesView', content=ContainerContent.Movies)
+
     if theater == None:
         theaters = getNearbyTheaters(Prefs['location'])
         m = []
@@ -307,15 +307,25 @@ def MoviesView(theater=None):
         else:
             date = "14 Nov 2014"
 
+        if movie['details'].has_key('Year'):
+            try:
+                year = int(movie['details']['Year'])
+            except:
+                ## I currently have a problem with some unicode characters in the json file
+                year = 1900
+        else:
+            year = 1900
+
         title = String.StripDiacritics(movie['name'])
         tagline = movie['showtimes']
         rating_key = String.Quote(movie['name'])
             
         oc.add(
             MovieObject(
-              key = Callback(Lookup, title=title, date=date, summary=description, directors=directors, genres=genres, tagline=tagline, thumb=thumb, trailer=movie['trailer'], rating_key = rating_key),
+              key = Callback(Lookup, title=title, date=date, year=year, summary=description, directors=directors, genres=genres, tagline=tagline, thumb=thumb, trailer=movie['trailer'], rating_key = rating_key),
               title = title,
               originally_available_at = Datetime.ParseDate(date),
+              year = year,
               summary = description,
               directors = directors,
               genres = genres,
@@ -329,13 +339,16 @@ def MoviesView(theater=None):
         )
     return oc
 
-def Lookup(title, date, summary, directors, genres, tagline, thumb, trailer, rating_key):
+
+#@route('/video/localtrailers/lookup',title, date, year, summary, directors, genres, tagline, thumb, trailer, rating_key ) 
+def Lookup(title, date, year, summary, directors, genres, tagline, thumb, trailer, rating_key):
     oc = ObjectContainer(title1='MoviesView', content=ContainerContent.Movies)
     oc.add(
         MovieObject(
-          key = Callback(Lookup, title=title, date=date, summary=summary, directors=directors, genres=genres, tagline=tagline, thumb=thumb, trailer=trailer, rating_key=rating_key),
+          key = Callback(Lookup, title=title, date=date, year=year, summary=summary, directors=directors, genres=genres, tagline=tagline, thumb=thumb, trailer=trailer, rating_key=rating_key),
           title = title,
           originally_available_at = Datetime.ParseDate(date),
+          year = year,
           summary = summary,
           directors = directors,
           genres = genres,
