@@ -42,9 +42,8 @@ def Start():
 # see:
 #  http://dev.plexapp.com/docs/Functions.html#ValidatePrefs
 def ValidatePrefs():
+    Log.Debug("Validating preferences")
     location = Prefs['location']
-    ## do some checks and return a
-    ## message container
     theaters = getNearbyTheaters(location)
     if(len(theaters)) != 0:
         HTTP.ClearCache()
@@ -61,7 +60,7 @@ def ValidatePrefs():
         )
 
 ### method to retrieve the Theaters info
-def getName(el):
+def getTheaterName(el):
     name = ""
     for t in el:
         if t.tag <> 'div' and t.attrib['class'] <> 'desc':
@@ -75,7 +74,7 @@ def getName(el):
         Log.Debug("This theater is closed.")
     return name
 
-def getAddress(el):
+def getTheaterAddress(el):
     address = ""
     for t in el:
         if t.tag <> 'div' and t.attrib['class'] <> 'desc':
@@ -86,7 +85,7 @@ def getAddress(el):
             continue
     return address
 
-def getLink(el):
+def getTheaterLink(el):
     link = ""
     for t in el:
         if t.tag <> 'div' and t.attrib['class'] <> 'desc':
@@ -150,10 +149,11 @@ def getTheatersFromHTML(theater_blocks):
     theaters = []
     for theater_block in theater_blocks:
         theater                 = {}
-        theater['name']         = getName(theater_block)
-        theater['address']      = getAddress(theater_block)
-        theater['link']         = getLink(theater_block)
-        theaters.append(theater)
+        theater['name']         = getTheaterName(theater_block)
+        theater['address']      = getTheaterAddress(theater_block)
+        theater['link']         = getTheaterLink(theater_block)
+        if theater['name'] != "":
+            theaters.append(theater)
     return theaters
 
 def getMoviesFromHTML(movie_blocks):
@@ -189,6 +189,22 @@ def getNearbyTheaters(location):
         theater_blocks = html.body.find_class('theater')
         page += 10
 
+    # if the list is not empty, save it to disk to be re-used
+    if len(theaters) != 0:
+        Data.Save('theaters.json', JSON.StringFromObject(theaters))
+
+    return theaters
+
+### Retrieve the theater list from the local disk
+@route('/video/localtrailers/gettheaterslist') 
+def getTheatersList():
+    theaters = []   
+
+    try:
+        theaters = JSON.ObjectFromString(Data.Load('theaters.json'))
+    except:
+        Log.Debug("Unable to read the theaters list")
+
     return theaters
 
 def getMoviesForTheater(theater):
@@ -211,6 +227,10 @@ def getMoviesForTheater(theater):
 #
 
 def VideoMainMenu():
+    # First, let's update the theaters list for today.
+    getNearbyTheaters(Prefs['location'])
+
+
     oc = ObjectContainer(title1='Watch your local trailers !')
     oc.add(
         DirectoryObject(
@@ -243,7 +263,8 @@ def VideoMainMenu():
 def TheatersView():
     oc = ObjectContainer(title1='TheatersView')
 
-    theaters = getNearbyTheaters(Prefs['location'])
+    #theaters = getNearbyTheaters(Prefs['location'])
+    theaters = getTheatersList()
     sorted_theaters = sorted(theaters, key=lambda k: k['name'])
     for theater in [ t for t in sorted_theaters if t['name'] <> "" ]:
         oc.add(
@@ -265,7 +286,8 @@ def MoviesView(theater=None):
     oc = ObjectContainer(title1='MoviesView', content=ContainerContent.Movies)
 
     if theater == None:
-        theaters = getNearbyTheaters(Prefs['location'])
+        #theaters = getNearbyTheaters(Prefs['location'])
+        theaters = getTheatersList()
         m = []
         for theater in theaters:
             m += getMoviesForTheater(theater=theater)
