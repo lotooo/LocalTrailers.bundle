@@ -315,10 +315,14 @@ def MoviesView(theater=None):
 
         if movie['details'].has_key('Year'):
             try:
-                year = int(movie['details']['Year'])
+                # Remove every non numerical characters from the year (Example: '2010-')
+                pattern = Regex("\d")
+                match = pattern.findall(movie['details']['Year'])
+                year = int(''.join(match))
             except:
                 ## I currently have a problem with some unicode characters in the json file
-                year = 1900
+                Log.Debug("Non readable year: %s" % movie['details']['Year'])
+                year = 1800
         else:
             year = 1900
 
