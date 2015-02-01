@@ -9,9 +9,6 @@ ART  = 'art-default.jpg'
 ICON = 'icon-default_w.png'
 
 ####################################################################################################
-from datetime import date
-from urllib import unquote
-from urllib import quote
 
 def Start():
 
@@ -58,6 +55,7 @@ def ValidatePrefs():
             "Error",
             "No theaters found. Please provide another location."
         )
+
 
 ### method to retrieve the Theaters info
 def getTheaterName(el):
@@ -118,8 +116,8 @@ def getMovieTrailer(el):
     for a in el.iter('a'):
         if a.text == 'Trailer':
             trailer = a.attrib['href']
-            Log.Debug(unquote(trailer[7:]))
-            return unquote(trailer[7:])
+            Log.Debug(String.Unquote(trailer[7:]))
+            return String.Unquote(trailer[7:])
     return trailer
 
 def getMovieIMDB(el):
@@ -127,8 +125,8 @@ def getMovieIMDB(el):
     for a in el.iter('a'):
         if a.text == 'IMDb':
             imdb = a.attrib['href']
-    Log.Debug(unquote(imdb[7:]))
-    return unquote(imdb[7:])
+    Log.Debug(String.Unquote(imdb[7:]))
+    return String.Unquote(imdb[7:])
 
 def getMovieDetails(title):
     url = "http://www.imdbapi.com/?t=%s" % String.Quote(title)
@@ -173,8 +171,8 @@ def getMoviesFromHTML(movie_blocks):
 def getNearbyTheaters(location):
     theaters = []   
 
-    Log.Debug("Retrieving theaters list for: %s" % quote(location))
-    url = "http://www.google.com/movies?near=%s" % quote(location)
+    Log.Debug("Retrieving theaters list for: %s" % String.Quote(location))
+    url = "http://www.google.com/movies?near=%s" % String.Quote(location)
 
     Log.Debug("URL: %s" % url)
 
@@ -184,29 +182,32 @@ def getNearbyTheaters(location):
     page = 20
     while len(getTheatersFromHTML(theater_blocks)) != 0:
         theaters += getTheatersFromHTML(theater_blocks)
-        url = "http://www.google.com/movies?near=%s&start=%d" % (quote(location), page)
+        url = "http://www.google.com/movies?near=%s&start=%d" % (String.Quote(location), page)
         html = HTML.ElementFromURL(url=url)
         theater_blocks = html.body.find_class('theater')
         page += 10
 
     # if the list is not empty, save it to disk to be re-used
+    # but save a sorted list of theaters by name
     if len(theaters) != 0:
-        Data.Save('theaters.json', JSON.StringFromObject(theaters))
+        Data.Save('theaters.json', JSON.StringFromObject(sorted(theaters, key=lambda k: k['name'])))
 
     return theaters
 
-### Retrieve the theater list from the local disk
+#
+# Retrieve the theaters list from the local disk
+#
 @route('/video/localtrailers/gettheaterslist') 
 def getTheatersList():
-    theaters = []   
-
     try:
         theaters = JSON.ObjectFromString(Data.Load('theaters.json'))
     except:
+        theaters = []   
         Log.Debug("Unable to read the theaters list")
-
     return theaters
-
+#
+# Get the movies list for the given theater
+#
 def getMoviesForTheater(theater):
     movies = []
     
@@ -259,29 +260,33 @@ def VideoMainMenu():
     )
     return oc
 
+#
+# Build the theaters list view
+#
 @route('/video/localtrailers/theatersview') 
 def TheatersView():
+    # Retrieve the theaters
+    theaters = getTheatersList()
+
+    # Build our container
     oc = ObjectContainer(title1='TheatersView')
 
-    #theaters = getNearbyTheaters(Prefs['location'])
-    theaters = getTheatersList()
-    sorted_theaters = sorted(theaters, key=lambda k: k['name'])
-    for theater in [ t for t in sorted_theaters if t['name'] <> "" ]:
+    for theater in theaters:
         oc.add(
-        DirectoryObject(
-            key=Callback(MoviesView, theater=theater),
-            title=L(String.StripDiacritics(theater['name'])),
-            summary=L(String.StripDiacritics(theater['address'])),
-            art=R('theater.jpg'),
-            thumb=R('theater_w.png'),
-        )
+            DirectoryObject(
+                key=Callback(MoviesView, theater=theater),
+                title=L(String.StripDiacritics(theater['name'])),
+                summary=L(String.StripDiacritics(theater['address'])),
+                art=R('theater.jpg'),
+                thumb=R('theater_w.png'),
+            )
         )
     return oc
 
 def unique(lst):
     return [] if lst==[] else [lst[0]] + unique(filter(lambda x: x!= lst[0], lst[1:]))
 
-@route('/video/localtrailers/moviesview',theater=None ) 
+@route('/video/localtrailers/moviesview', theater=Dict) 
 def MoviesView(theater=None):
     oc = ObjectContainer(title1='MoviesView', content=ContainerContent.Movies)
 
@@ -321,7 +326,7 @@ def MoviesView(theater=None):
             # Get the youtube info
             video_info = URLService.MetadataObjectForURL(movie['trailer'])
             if video_info <> None:
-                thumb = unquote(video_info.thumb.split('=').pop()).replace("%3A",":")
+                thumb = String.Unquote(video_info.thumb.split('=').pop()).replace("%3A",":")
             else:
                 thumb = ""
 
@@ -372,9 +377,9 @@ def MoviesView(theater=None):
     return oc
 
 
-#@route('/video/localtrailers/lookup',title, date, year, summary, directors, genres, tagline, thumb, trailer, rating_key ) 
+@route('/video/localtrailers/lookup', directors=list, genres=list, year=int) 
 def Lookup(title, date, year, summary, directors, genres, tagline, thumb, trailer, rating_key,includeRelatedCount=None,includeRelated=None,includeExtras=None):
-    oc = ObjectContainer(title1='MoviesView', content=ContainerContent.Movies)
+    oc = ObjectContainer(title1='Lookup', content=ContainerContent.Movies)
     oc.add(
         MovieObject(
           key = Callback(Lookup, title=title, date=date, year=year, summary=summary, directors=directors, genres=genres, tagline=tagline, thumb=thumb, trailer=trailer, rating_key=rating_key),
@@ -393,15 +398,3 @@ def Lookup(title, date, year, summary, directors, genres, tagline, thumb, traile
         )
     )
     return oc
-
-def CallbackExample():
-
-    ## you might want to try making me return a MediaContainer
-    ## containing a list of DirectoryItems to see what happens =)
-
-    return MessageContainer(
-        "Not implemented",
-        "In real life, you'll make more than one callback,\nand you'll do something useful."
-    )
-
-  
