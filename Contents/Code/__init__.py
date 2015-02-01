@@ -9,6 +9,7 @@ ART  = 'art-default.jpg'
 ICON = 'icon-default_w.png'
 
 ####################################################################################################
+import json
 
 def Start():
 
@@ -56,44 +57,43 @@ def ValidatePrefs():
             "No theaters found. Please provide another location."
         )
 
+#######################################
+#
+# Theater Object definition
+#
+#######################################
+class Theater:
+    def __init__(self, html_block):
+        self.name       = ""
+        self.link       = ""
+        self.address    = ""
+        self.id         = ""
 
-### method to retrieve the Theaters info
-def getTheaterName(el):
-    name = ""
-    for t in el:
-        if t.tag <> 'div' and t.attrib['class'] <> 'desc':
-            continue
-        for n in t:
-            if n.tag == 'h2':
-                for link in n:
-                    name = link.text
-            continue
-    if name == "":
-        Log.Debug("This theater is closed.")
-    return name
+        for t in html_block:
+            if t.tag <> 'div' and t.attrib['class'] <> 'desc':
+                continue
+            for n in t:
+                if n.tag == 'h2':
+                    for link in n:
+                        self.name = String.StripDiacritics(link.text)
+                        self.link = link.attrib['href']
+                if n.tag == 'div' and n.attrib['class'] == 'info':
+                    self.address = String.StripDiacritics(n.text)
+                continue
+        if self.name == "":
+            Log.Debug("This theater is closed.")
 
-def getTheaterAddress(el):
-    address = ""
-    for t in el:
-        if t.tag <> 'div' and t.attrib['class'] <> 'desc':
-            continue
-        for n in t:
-            if n.tag == 'div' and n.attrib['class'] == 'info':
-                address = n.text
-            continue
-    return address
+        # Retrieve the theater id
+        pattern = Regex("tid=(\w+)")
+        match = pattern.findall(self.link)
+        if match:
+            self.id = match.pop()
 
-def getTheaterLink(el):
-    link = ""
-    for t in el:
-        if t.tag <> 'div' and t.attrib['class'] <> 'desc':
-            continue
-        for n in t:
-            if n.tag == 'h2':
-                for l in n:
-                    link = l.attrib['href']
-            continue
-    return link
+#######################################
+#
+# Movie Object definition
+#
+#######################################
 
 ## Methods to retrieve the movie info
 def getMovieName(el):
@@ -146,11 +146,8 @@ def getMovieShowtimes(el):
 def getTheatersFromHTML(theater_blocks):
     theaters = []
     for theater_block in theater_blocks:
-        theater                 = {}
-        theater['name']         = getTheaterName(theater_block)
-        theater['address']      = getTheaterAddress(theater_block)
-        theater['link']         = getTheaterLink(theater_block)
-        if theater['name'] != "":
+        theater = Theater(theater_block)
+        if theater.name != "":
             theaters.append(theater)
     return theaters
 
@@ -190,7 +187,9 @@ def getNearbyTheaters(location):
     # if the list is not empty, save it to disk to be re-used
     # but save a sorted list of theaters by name
     if len(theaters) != 0:
-        Data.Save('theaters.json', JSON.StringFromObject(sorted(theaters, key=lambda k: k['name'])))
+        Dict['theaters'] = {}
+        for theater in sorted(theaters, key=lambda k: k.name):
+            Dict['theaters'][theater.id] = theater 
 
     return theaters
 
@@ -200,18 +199,19 @@ def getNearbyTheaters(location):
 @route('/video/localtrailers/gettheaterslist') 
 def getTheatersList():
     try:
-        theaters = JSON.ObjectFromString(Data.Load('theaters.json'))
+        theaters = Dict['theaters']
     except:
         theaters = []   
         Log.Debug("Unable to read the theaters list")
     return theaters
+
 #
 # Get the movies list for the given theater
 #
-def getMoviesForTheater(theater):
+def getMoviesForTheater(theater_id):
     movies = []
     
-    url = "http://www.google.com%s" % theater['link']
+    url = "http://www.google.com%s" % Dict['theaters'][theater_id].link
 
     Log.Debug("URL: %s" % url)
 
@@ -271,12 +271,13 @@ def TheatersView():
     # Build our container
     oc = ObjectContainer(title1='TheatersView')
 
-    for theater in theaters:
+    for t in sorted(theaters.items(),key = lambda x :x[1].name, reverse = True):
+        id, theater = t
         oc.add(
             DirectoryObject(
-                key=Callback(MoviesView, theater=theater),
-                title=L(String.StripDiacritics(theater['name'])),
-                summary=L(String.StripDiacritics(theater['address'])),
+                key=Callback(MoviesView, theater_id=id),
+                title=theater.name,
+                summary=theater.address,
                 art=R('theater.jpg'),
                 thumb=R('theater_w.png'),
             )
@@ -286,19 +287,18 @@ def TheatersView():
 def unique(lst):
     return [] if lst==[] else [lst[0]] + unique(filter(lambda x: x!= lst[0], lst[1:]))
 
-@route('/video/localtrailers/moviesview', theater=Dict) 
-def MoviesView(theater=None):
+@route('/video/localtrailers/moviesview') 
+def MoviesView(theater_id=None):
     oc = ObjectContainer(title1='MoviesView', content=ContainerContent.Movies)
 
-    if theater == None:
-        #theaters = getNearbyTheaters(Prefs['location'])
+    if theater_id == None:
         theaters = getTheatersList()
         m = []
-        for theater in theaters:
-            m += getMoviesForTheater(theater=theater)
+        for id in theaters:
+            m += getMoviesForTheater(theater_id=id)
             movies = unique(m)
     else:
-        movies = getMoviesForTheater(theater=theater)
+        movies = getMoviesForTheater(theater_id=theater_id)
 
     sorted_movies = sorted(movies, key=lambda k: k['name'])
 
