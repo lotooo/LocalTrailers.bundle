@@ -341,7 +341,7 @@ def MoviesView(theater=None):
 
 
 #@route('/video/localtrailers/lookup',title, date, year, summary, directors, genres, tagline, thumb, trailer, rating_key ) 
-def Lookup(title, date, year, summary, directors, genres, tagline, thumb, trailer, rating_key):
+def Lookup(title, date, year, summary, directors, genres, tagline, thumb, trailer, rating_key,includeRelatedCount=None,includeRelated=None,includeExtras=None):
     oc = ObjectContainer(title1='MoviesView', content=ContainerContent.Movies)
     oc.add(
         MovieObject(
