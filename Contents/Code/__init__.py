@@ -104,7 +104,13 @@ def getMovieName(el):
     for a in el.iter('a'):
         if a.text <> 'Trailer' and a.text <> 'IMDb':
             name = a.text
+    # Try to find if the movie name is in form 'english version (orginal name)'
+    my_pattern = Regex("(.*) \(.*\)")
+    match = my_pattern.search(name)
     Log.Debug(name)
+    if match:
+        Log.Debug("Filtered Name: %s" % match.group(1))
+        name = match.group(1)
     return name
 
 def getMovieTrailer(el):
