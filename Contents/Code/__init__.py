@@ -8,6 +8,9 @@ NAME = L('Title')
 ART  = 'art-default.jpg'
 ICON = 'icon-default_w.png'
 
+# Maximum age of the cache in seconds
+UPDATE_INFO=3600
+
 ####################################################################################################
 import json
 
@@ -130,11 +133,11 @@ class Movie:
             self.name = match.group(1)
 
         # Get showtimes 
-        showtimes = el.xpath(".//div[@class='times']/span/text()")
+        showtimes = html_block.xpath(".//div[@class='times']/span/text()")
         self.showtimes = ' | '.join(showtimes)
 
         # Get movie details from imdb
-        url = "http://www.imdbapi.com/?t=%s" % String.Quote(title)
+        url = "http://www.imdbapi.com/?t=%s" % String.Quote(self.name)
 
         try:
             self.details = JSON.ObjectFromURL(url)
@@ -152,14 +155,14 @@ class Movie:
 
 
         if self.details.has_key('Poster'):
-            self.thumb = movie.details['Poster']
+            self.thumb = self.details['Poster']
         else:
             # Get the youtube info
             video_info = URLService.MetadataObjectForURL(self.trailer)
-            if video_info <> None:
+            if video_info:
                 thumb = String.Unquote(video_info.thumb.split('=').pop()).replace("%3A",":")
 
-        if selft.details.has_key('Plot'):
+        if self.details.has_key('Plot'):
             self.description = self.details['Plot']
 
         if self.details.has_key('Released'):
@@ -201,8 +204,6 @@ def getNearbyTheaters(location):
     Log.Debug("Retrieving theaters list for: %s" % String.Quote(location))
     url = "http://www.google.com/movies?near=%s" % String.Quote(location)
 
-    Log.Debug("URL: %s" % url)
-
     html = HTML.ElementFromURL(url=url)
     theater_blocks = html.body.find_class('theater')
 
@@ -240,14 +241,47 @@ def getTheatersList():
 #
 def getMoviesForTheater(theater_id):
     movies = []
-    
-    url = "http://www.google.com%s" % Dict['theaters'][theater_id].link
 
-    Log.Debug("URL: %s" % url)
+    # Let's initiate our caching object
+    if theater_id in Dict:
+        try:
+            last_parsed = Dict[theater_id]['lastParsed']
+        except Exception as e:
+            Log.Debug(e)
+            last_parsed = Datetime.ParseDate('22 Oct 2014')
+        now = Datetime.Now()
+        age=now-last_parsed
+        Log.Debug("Last parsing: %ds ago" % age.seconds)
+        if age.seconds > UPDATE_INFO:
+            to_be_parsed = True
+        else:
+            to_be_parsed = False
+    else:
+        Log.Debug("This theater has not been parsed yet.")
+        Dict[theater_id] = {
+            'lastParsed'    : Datetime.Now(),
+            'movies'        : {}
+        }
+        Log.Debug(Dict[theater_id]['lastParsed'])
+        to_be_parsed = True
 
-    html = HTML.ElementFromURL(url=url)
-    movies_block = html.body.find_class('movie')
-    movies = getMoviesFromHTML(movies_block) 
+    if to_be_parsed: 
+        Log.Debug("Theater %s must be parsed" % theater_id)
+
+        url = "http://www.google.com%s" % Dict['theaters'][theater_id].link
+
+        Log.Debug("URL: %s" % url)
+
+        html = HTML.ElementFromURL(url=url)
+        movies_block = html.body.find_class('movie')
+        movies = getMoviesFromHTML(movies_block) 
+
+        # Update the dict
+        Dict[theater_id]['movies']      = movies
+        Dict[theater_id]['lastParsed']  = Datetime.Now()
+    else:
+        Log.Debug("Theater %s don't have to be parsed" % theater_id)
+        movies = Dict[theater_id]['movies']
 
     return sorted(movies, key=lambda k: k.name)
 
@@ -321,14 +355,20 @@ def unique(lst):
 
 @route('/video/localtrailers/moviesview') 
 def MoviesView(theater_id=None):
-    oc = ObjectContainer(title1='MoviesView', content=ContainerContent.Movies)
+    if theater_id:
+        oc_title=Dict['theaters'][theater_id].name
+    else:
+        oc_title="By Movies"
+
+    oc = ObjectContainer(title1=oc_title, content=ContainerContent.Movies)
 
     if theater_id == None:
         theaters = getTheatersList()
-        m = []
+        movies = []
         for id in theaters:
-            m += getMoviesForTheater(theater_id=id)
-            movies = unique(m)
+            for m in getMoviesForTheater(theater_id=id):
+                if m not in movies:
+                    movies.append(m)
     else:
         movies = getMoviesForTheater(theater_id=theater_id)
 
@@ -359,7 +399,7 @@ def MoviesView(theater_id=None):
               directors = movie.directors,
               genres = movie.genres,
               art=R('movie.jpg'),
-              tagline= movie.tagline,
+              tagline= tagline,
               thumb=Resource.ContentsOfURLWithFallback(url=movie.thumb),
               items = URLService.MediaObjectsForURL(movie.trailer),
               rating_key = rating_key
