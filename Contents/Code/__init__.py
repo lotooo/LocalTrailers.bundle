@@ -57,11 +57,11 @@ def ValidatePrefs():
             "No theaters found. Please provide another location."
         )
 
-#######################################
+######################################################################################
 #
 # Theater Object definition
 #
-#######################################
+######################################################################################
 class Theater:
     def __init__(self, html_block):
         self.name       = ""
@@ -89,59 +89,93 @@ class Theater:
         if match:
             self.id = match.pop()
 
-#######################################
+######################################################################################
+
+######################################################################################
 #
 # Movie Object definition
 #
-#######################################
+######################################################################################
+class Movie:
+    def __init__(self, html_block):
+        self.name           = ""
+        # If no trailer found, choose "La classe américaine"
+        self.trailer        = "https://www.youtube.com/watch?v=qHqYutWuy1E" 
+        self.imdb           = ""
+        self.showtimes      = ""
+        self.details        = {}
+        self.video_rating   = 5.0
+        self.directors      = []
+        self.genres         = []
+        self.thumb          = ""
+        self.description    = "No synopsis available"
+        self.date           = "14 Nov 2014"
+        self.year           = 1800
 
-## Methods to retrieve the movie info
-def getMovieName(el):
-    name = ""
-    for a in el.iter('a'):
-        if a.text <> 'Trailer' and a.text <> 'IMDb':
-            name = a.text
-    # Try to find if the movie name is in form 'english version (orginal name)'
-    my_pattern = Regex("(.*) \(.*\)")
-    match = my_pattern.search(name)
-    Log.Debug(name)
-    if match:
-        Log.Debug("Filtered Name: %s" % match.group(1))
-        name = match.group(1)
-    return name
+        for a in html_block.iter('a'):
+            if a.text <> 'Trailer' and a.text <> 'IMDb':
+                self.name = a.text
+            if a.text == 'Trailer':
+                trailer = a.attrib['href']
+                self.trailer = String.Unquote(trailer[7:])
+            if a.text == 'IMDb':
+                imdb = a.attrib['href']
+                self.imdb = String.Unquote(imdb[7:])
 
-def getMovieTrailer(el):
-    # If no trailer found, choose La classe américaine
-    trailer = "https://www.youtube.com/watch?v=qHqYutWuy1E"
-    for a in el.iter('a'):
-        if a.text == 'Trailer':
-            trailer = a.attrib['href']
-            Log.Debug(String.Unquote(trailer[7:]))
-            return String.Unquote(trailer[7:])
-    return trailer
+        # Try to find if the movie name is in form 'english version (orginal name)'
+        my_pattern = Regex("(.*) \(.*\)")
+        match = my_pattern.search(self.name)
+        if match:
+            Log.Debug("Filtered Name: %s" % match.group(1))
+            self.name = match.group(1)
 
-def getMovieIMDB(el):
-    imdb = ""
-    for a in el.iter('a'):
-        if a.text == 'IMDb':
-            imdb = a.attrib['href']
-    Log.Debug(String.Unquote(imdb[7:]))
-    return String.Unquote(imdb[7:])
+        # Get showtimes 
+        showtimes = el.xpath(".//div[@class='times']/span/text()")
+        self.showtimes = ' | '.join(showtimes)
 
-def getMovieDetails(title):
-    url = "http://www.imdbapi.com/?t=%s" % String.Quote(title)
+        # Get movie details from imdb
+        url = "http://www.imdbapi.com/?t=%s" % String.Quote(title)
 
-    try:
-        details = JSON.ObjectFromURL(url)
-    except:
-        Log.Debug("Unable to parse JSON from %s" % url)
-        details = {}
+        try:
+            self.details = JSON.ObjectFromURL(url)
+        except:
+            Log.Debug("Unable to parse JSON from %s" % url)
 
-    return details
+        if self.details.has_key('imdbRating'):
+            self.video_rating = self.details['imdbRating']
 
-def getMovieShowtimes(el):
-    showtimes = el.xpath(".//div[@class='times']/span/text()")
-    return ' | '.join(showtimes)
+        if self.details.has_key('Director'):
+            self.directors = [self.details['Director']]
+
+        if self.details.has_key('Genre'):
+            self.genres = self.details['Genre'].split(',')
+
+
+        if self.details.has_key('Poster'):
+            self.thumb = movie.details['Poster']
+        else:
+            # Get the youtube info
+            video_info = URLService.MetadataObjectForURL(self.trailer)
+            if video_info <> None:
+                thumb = String.Unquote(video_info.thumb.split('=').pop()).replace("%3A",":")
+
+        if selft.details.has_key('Plot'):
+            self.description = self.details['Plot']
+
+        if self.details.has_key('Released'):
+            self.date = self.details['Released']
+
+        if self.details.has_key('Year'):
+            try:
+                # Remove every non numerical characters from the year (Example: '2010-')
+                pattern = Regex("\d")
+                match = pattern.findall(self.details['Year'])
+                self.year = int(''.join(match))
+            except:
+                ## I currently have a problem with some unicode characters in the json file
+                Log.Debug("Non readable year: %s" % self.details['Year'])
+
+######################################################################################
 
 def getTheatersFromHTML(theater_blocks):
     theaters = []
@@ -154,13 +188,9 @@ def getTheatersFromHTML(theater_blocks):
 def getMoviesFromHTML(movie_blocks):
     movies = []
     for movie_block in movie_blocks:
-        movie                 = {}
-        movie['name']         = getMovieName(movie_block)
-        movie['trailer']      = getMovieTrailer(movie_block)
-        movie['imdb']         = getMovieIMDB(movie_block)
-        movie['showtimes']    = getMovieShowtimes(movie_block)
-        movie['details']      = getMovieDetails(movie['name'])
-        movies.append(movie)
+        movie   = Movie(movie_block)
+        if movie.name != "":
+            movies.append(movie)
     return movies
 
 
@@ -219,7 +249,7 @@ def getMoviesForTheater(theater_id):
     movies_block = html.body.find_class('movie')
     movies = getMoviesFromHTML(movies_block) 
 
-    return movies
+    return sorted(movies, key=lambda k: k.name)
 
 
 #
@@ -230,6 +260,8 @@ def getMoviesForTheater(theater_id):
 def VideoMainMenu():
     # First, let's update the theaters list for today.
     getNearbyTheaters(Prefs['location'])
+    # Then, erase the movies info. these need to be updated
+    Dict['movies'] = {}
 
 
     oc = ObjectContainer(title1='Watch your local trailers !')
@@ -300,76 +332,36 @@ def MoviesView(theater_id=None):
     else:
         movies = getMoviesForTheater(theater_id=theater_id)
 
-    sorted_movies = sorted(movies, key=lambda k: k['name'])
+    for movie in movies:
 
-    for movie in [ t for t in sorted_movies if t['name'] <> "" ]:
-
-        if movie['details'].has_key('imdbRating'):
-            video_rating = movie['details']['imdbRating']
-        else:
-            video_rating = 5.0
-
-        if movie['details'].has_key('Director'):
-            directors = [movie['details']['Director']]
-        else:
-            directors = []
-
-        if movie['details'].has_key('Genre'):
-            genres = movie['details']['Genre'].split(',')
-        else:
-            genres = []
-
-
-        if movie['details'].has_key('Poster'):
-            thumb = movie['details']['Poster']
-        else:
-            # Get the youtube info
-            video_info = URLService.MetadataObjectForURL(movie['trailer'])
-            if video_info <> None:
-                thumb = String.Unquote(video_info.thumb.split('=').pop()).replace("%3A",":")
-            else:
-                thumb = ""
-
-        if movie['details'].has_key('Plot'):
-            description = movie['details']['Plot']
-        else:
-            description = "No synopsis available"
-
-        if movie['details'].has_key('Released'):
-            date = movie['details']['Released']
-        else:
-            date = "14 Nov 2014"
-
-        if movie['details'].has_key('Year'):
-            try:
-                # Remove every non numerical characters from the year (Example: '2010-')
-                pattern = Regex("\d")
-                match = pattern.findall(movie['details']['Year'])
-                year = int(''.join(match))
-            except:
-                ## I currently have a problem with some unicode characters in the json file
-                Log.Debug("Non readable year: %s" % movie['details']['Year'])
-                year = 1800
-        else:
-            year = 1900
-
-        title = String.StripDiacritics(movie['name'])
-        tagline = movie['showtimes']
-        rating_key = String.Quote(movie['name'])
+        title = String.StripDiacritics(movie.name)
+        tagline = movie.showtimes
+        rating_key = String.Quote(movie.name)
             
         oc.add(
             MovieObject(
-              key = Callback(Lookup, title=title, date=date, year=year, summary=description, directors=directors, genres=genres, tagline=tagline, thumb=thumb, trailer=movie['trailer'], rating_key = rating_key),
+              key = Callback(Lookup, 
+                        title=title, 
+                        date=movie.date, 
+                        year=movie.year, 
+                        summary=movie.description, 
+                        directors=movie.directors, 
+                        genres=movie.genres, 
+                        tagline=tagline, 
+                        thumb=movie.thumb, 
+                        trailer=movie.trailer, 
+                        rating_key = rating_key
+              ),
               title = title,
-              originally_available_at = Datetime.ParseDate(date),
-              year = year,
-              summary = description,
-              directors = directors,
-              genres = genres,
+              originally_available_at = Datetime.ParseDate(movie.date),
+              year = movie.year,
+              summary = movie.description,
+              directors = movie.directors,
+              genres = movie.genres,
               art=R('movie.jpg'),
-              tagline= tagline,
-              thumb=Resource.ContentsOfURLWithFallback(url=thumb),
-              items = URLService.MediaObjectsForURL(movie['trailer']),
+              tagline= movie.tagline,
+              thumb=Resource.ContentsOfURLWithFallback(url=movie.thumb),
+              items = URLService.MediaObjectsForURL(movie.trailer),
               rating_key = rating_key
 
             )
